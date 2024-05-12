@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whales Chat</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #chat-container {
+            display: flex;
+            width: 800px;
+            height: 550px;
+            margin: auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #chat-interface {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #ddd;
+        }
+        #chat-header {
+            background-color: #4A90E2;
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+            font-size: 24px;
+            font-weight: bold;
+            border-bottom: 2px solid #3d70b2;
+            position: relative;
+        }
+        #chat {
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        #input-area {
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        input[type="text"], button {
+            flex-grow: 1;
+            padding: 10px;
+            margin-right: 5px;
+            border: 2px solid #ddd;
+            font-size: 16px;
+            border-radius: 20px;
+        }
+        button {
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 8px 16px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #4cae4c;
+        }
+        .top-right-links {
+            position:absolute;
+            right: 10px;
+            top: 10px;
+        }
+        .top-right-links a, .top-right-links button {
+            color: white;
+            text-decoration: none;
+            margin-left: 10px;
+        }
+        .admin strong {
+            border: 2px solid #cd5151; /* Ensures a red border around admin messages */
+            padding: 3px 8px;
+            border-radius: 10px;
+            background-color: #f0f0f0;
+        }
+        #online-users {
+            width: 200px;
+            background-color: #f8f8f8;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        #online-users h4 {
+            text-align: center;
+            color: #333;
+        }
+        #online-users ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #online-users li {
+            padding: 8px;
+            color: #5cb85c;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+        }
+        #online-users li:last-child {
+            border-bottom: none;
+        }
+        #online-users li:before {
+            content: "● ";
+            color: #66bb6a; /* Green color indicating online */
+            font-size: larger;
+            padding-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-interface">
+            <div id="chat-header">Whales Chat
+                <div class="top-right-links">
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-warning">Admin Dashboard</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger">Logout</a>
+                </div>
+            </div>
+            <div id="chat">
+                {% for message in messages %}
+                <p class="{{ 'admin' if message.is_admin else '' }}">
+                    <strong>{{ message.username }}</strong>: {{ message.message }}
+                    <small class="text-muted" data-timestamp="{{ message.timestamp.isoformat() }}">{{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                </p>
+                {% endfor %}
+            </div>
+            <div id="input-area">
+                <input type="text" id="message" placeholder="Type a message...">
+                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i> Send</button>
+            </div>
+        </div>
+        <div id="online-users">
+            <h4>Online Users</h4>
+            <ul id="users-list">
+                <!-- Online users will be dynamically added here -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+
+        socket.on('receive_message', function(data) {
+            displayMessage(data);
+        });
+
+        // Function to handle incoming and existing messages
+        function displayMessage(data) {
+            const timeAgo = moment.utc(data.timestamp).local().fromNow();  // Handle as UTC, convert to local
+            const adminClass = data.is_admin ? 'admin' : '';
+            const escapedMessage = escapeHTML(data.message);
+            const escapedUsername = escapeHTML(data.username);
+
+            $('#chat').append(`<p class="${adminClass}"><strong>${escapedUsername}:</strong> ${escapedMessage} <small class="text-muted" data-timestamp="${data.timestamp}">${timeAgo}</small></p>`);
+            $('#chat').scrollTop($('#chat')[0].scrollHeight);
+        }
+
+        // Update the time every minute for all messages
+        setInterval(() => {
+            $('.text-muted').each(function () {
+                const isoTimestamp = $(this).data('timestamp');
+                const timeText = moment.utc(isoTimestamp).local().fromNow();
+                $(this).text(timeText);
+            });
+        }, 60000);
+
+        socket.on('user_logon', function(data) {
+            $('#chat').append('<p class="text-muted" style="font-size: small;">' + data.message + '</p>');
+        });
+
+        socket.on('user_online', function(data) {
+            $('#users-list').append(`<li id="user-${data.username}">${data.username}</li>`);
+        });
+
+        socket.on('user_offline', function(data) {
+            $(`#user-${data.username}`).remove();
+        });
+
+        function sendMessage() {
+            var message = $('#message').val().trim();
+            if (message) {  // Checks if the message is not empty
+                socket.emit('send_message', {message: escapeHTML(message), timestamp: new Date().toISOString()});
+                $('#message').val('');
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.keyCode === 13) {  // Enter key
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function escapeHTML(text) {
+            var map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        $(document).ready(function() {
+            $('#message').keypress(handleKeyPress);
+
+            // Convert initial timestamps to relative time
+            $('small.text-muted').each(function() {
+                const isoTimestamp = $(this).data('timestamp');
+                const timeText = moment.utc(isoTimestamp).local().fromNow(); // Ensure UTC is handled correctly
+                $(this).text(`${timeText}`); // Include brackets if that's your intended display format
+            });
+        });
+    </script>
+</body>
+</html>

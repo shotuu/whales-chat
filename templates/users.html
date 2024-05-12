@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whales Chat</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f4f4f4; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        #chat-interface { 
+            background: white; 
+            width: 600px; 
+            height: 550px; 
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); 
+            border-radius: 8px; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        #chat-header { 
+            background-color: #4A90E2; 
+            color: white; 
+            text-align: center; 
+            padding: 15px 0; 
+            font-size: 24px; 
+            font-weight: bold; 
+            border-bottom: 2px solid #3d70b2; 
+            position: relative; 
+        }
+        #chat { 
+            height: 340px; 
+            overflow-y: scroll; 
+            border-bottom: 2px solid #f1f1f1; 
+            padding: 10px; 
+        }
+        #input-area { 
+            padding: 10px; 
+            display: flex; 
+            align-items: center; 
+        }
+        input[type="text"], button { 
+            padding: 10px; 
+            margin: 2px; 
+            font-size: 16px; 
+        }
+        input[type="text"] { 
+            border: 2px solid #ddd; 
+            flex-grow: 1; 
+            margin-right: 5px; 
+        }
+        button { 
+            background-color: #5cb85c; 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            width: auto; 
+            padding: 10px 20px; 
+            font-size: 16px; 
+        }
+        button:hover { 
+            background-color: #4cae4c; 
+        }
+        .top-right-links { 
+            position: absolute; 
+            right: 10px; 
+            top: 10px; 
+        }
+        .top-right-links a, .top-right-links button { 
+            color: white; 
+            text-decoration: none; 
+            margin-left: 10px; 
+        }
+        .admin-button {
+            background-color: #007bff;
+            border: none;
+        }
+        .admin-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-interface">
+        <div id="chat-header">Whales Chat
+            <div class="top-right-links">
+                {% if current_user.is_admin %}
+                    <button onclick="location.href='{{ url_for('admin_dashboard') }}'" class="admin-button btn btn-sm">Admin Dashboard</button>
+                {% endif %}
+                <button onclick="location.href='{{ url_for('logout') }}'" class="btn btn-sm btn-danger">Logout</button>
+            </div>
+        </div>
+        <div id="chat"></div>
+        <div id="input-area">
+            <input type="text" id="message" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+
+        socket.on('receive_message', function(data) {
+            $('#chat').append('<p><strong>' + data.username + ':</strong> ' + data.message + '</p>');
+            $('#chat').scrollTop($('#chat')[0].scrollHeight);
+        });
+
+        function sendMessage() {
+            var message = $('#message').val().trim();
+            if (!message) {
+                alert('Message cannot be empty!');
+                return;
+            }
+            socket.emit('send_message', {message: message});
+            $('#message').val('');
+        }
+
+        function handleKeyPress(event) {
+            if (event.keyCode === 13) {  // Enter key
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
